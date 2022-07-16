@@ -7,6 +7,7 @@
     // Python modules search paths:
     "python.analysis.extraPaths": [
         "${workspaceFolder}/exts/rv.services.isaac",
+        "${workspaceFolder}/app/exts/omni.services.core-1.2.0+cp37",
         "${workspaceFolder}/app/kit/extscore/omni.kit.pip_archive/pip_prebundle",
         "${workspaceFolder}/app/kit/plugins/bindings-python",
         "${workspaceFolder}/app/apps/omni.isaac.sim.python.kit",
@@ -486,7 +487,7 @@
 
     // Python & Pylance Setup
     "python.languageServer": "Pylance",
-    "python.pythonPath": "${workspaceFolder}/app/kit/python/bin/python3",
+    "python.defaultInterpreterPath": "${workspaceFolder}/app/kit/python/bin/python3",
 
     // We use "black" as a formatter:
     "python.formatting.provider": "black",

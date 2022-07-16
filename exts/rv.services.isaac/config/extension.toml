@@ -3,7 +3,7 @@
 version = "1.0.0"
 
 # The title and description fields are primarily for displaying extension info in UI
-title = "Simple UI Extension Template"
+title = "ROBOVERSE Isaac Sim Microservices"
 description="The simplest python extension example. Use it as a starting point for your extensions."
 
 # Path (relative to the root) or content of readme markdown file for UI.
@@ -16,12 +16,14 @@ repository = ""
 category = "Example"
 
 # Keywords for the extension
-keywords = ["kit", "example"]
+keywords = ["isaac", "microservice"]
 
 
 # Use omni.ui to build simple UI
 [dependencies]
 "omni.kit.uiapp" = {}
+"omni.services.core" = {}
+"omni.usd" = {}
 
 # Main python module this extension provides, it will be publicly available as "import omni.hello.world".
 [[python.module]]
