@@ -66,7 +66,7 @@ class BaseSample(object):
             self._world.add_physics_callback("tasks_step", self._world.step_async)
         return
 
-    # @abstractmethod
+    @abstractmethod
     def setup_scene(self, scene: Scene) -> None:
         """used to setup anything in the world, adding tasks happen here for instance.
 
@@ -75,27 +75,27 @@ class BaseSample(object):
         """
         return
 
-    # @abstractmethod
+    @abstractmethod
     async def setup_post_load(self):
         """called after first reset of the world when pressing load, 
             intializing provate variables happen here.
         """
         return
 
-    # @abstractmethod
+    @abstractmethod
     async def setup_pre_reset(self):
         """ called in reset button before resetting the world
          to remove a physics callback for instance or a controller reset
         """
         return
 
-    # @abstractmethod
+    @abstractmethod
     async def setup_post_reset(self):
         """ called in reset button after resetting the world which includes one step with rendering
         """
         return
 
-    # @abstractmethod
+    @abstractmethod
     async def setup_post_clear(self):
         """called after clicking clear button 
           or after creating a new stage and clearing the instance of the world with its callbacks

@@ -5,6 +5,9 @@ import omni.ui as ui
 from omni.services.core import main
 from omni.isaac.core import World
 from omni.isaac.core.scenes.scene import Scene
+from omni.isaac.core.utils.nucleus import get_assets_root_path
+from omni.isaac.core.utils.stage import add_reference_to_stage
+from omni.isaac.core.robots import Robot
 
 from rv.services.isaac.base_sample import BaseSample
 
@@ -17,6 +20,30 @@ class HelloWorld(BaseSample):
     def __init__(self) -> None:
         super().__init__()
         return
+
+    def add_robot(self):
+        world = self.get_world()
+        # Use the find_nucleus_server instead of changing it every time
+        # you configure a new server with /Isaac folder in it
+        # assets_root_path = get_assets_root_path()
+        assets_root_path = "omniverse://localhost/NVIDIA/Assets/Isaac/2022.1"
+        if assets_root_path is None:
+            # Use carb to log warnings, errors and infos in your application (shown on terminal)
+            carb.log_error("Could not find nucleus server with /Isaac folder")
+        asset_path = assets_root_path + "/Isaac/Robots/Jetbot/jetbot.usd"
+        # This will create a new XFormPrim and point it to the usd file as a reference
+        # Similar to how pointers work in memory
+        add_reference_to_stage(usd_path=asset_path, prim_path="/World/Fancy_Robot")
+        # Wrap the jetbot prim root under a Robot class and add it to the Scene
+        # to use high level api to set/ get attributes as well as initializing
+        # physics handles needed..etc.
+        # Note: this call doesn't create the Jetbot in the stage window, it was already
+        # created with the add_reference_to_stage
+        jetbot_robot = world.scene.add(Robot(prim_path="/World/Fancy_Robot", name="fancy_robot"))
+        # Note: before a reset is called, we can't access information related to an Articulation
+        # because physics handles are not initialized yet. setup_post_load is called after
+        # the first reset so we can do so there
+        print("Num of degrees of freedom before first reset: " + str(jetbot_robot.num_dof)) # prints None
 
     def setup_scene(self, scene: Scene):
         scene.add_default_ground_plane()
@@ -49,6 +76,7 @@ class IsaacServiceExtension(omni.ext.IExt):
         self._sample = HelloWorld()
 
         main.register_endpoint("get", "/create_world_async", self._sample.load_world_async)
+        main.register_endpoint("get", "/add_robot", self._sample.add_robot)
 
         self._window = ui.Window("My Window", width=300, height=300)
         with self._window.frame:
@@ -73,4 +101,5 @@ class IsaacServiceExtension(omni.ext.IExt):
 
     def on_shutdown(self):
         main.deregister_endpoint("get", "/ping")
+        main.deregister_endpoint("get", "/add_robot")
         print("[rv.services.isaac] MyExtension shutdown")
