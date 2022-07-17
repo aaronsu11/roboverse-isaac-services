@@ -1,22 +1,24 @@
+# this file initializes the service endpoint and world
+
 import carb
 import asyncio
 import omni.ext
 import omni.ui as ui
 from omni.services.core import main
-from omni.isaac.core import World
 from omni.isaac.core.scenes.scene import Scene
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.isaac.core.robots import Robot
 
-from rv.services.isaac.base_sample import BaseSample
+from .main.worlds.base import Base
+from .main.services import usd_service
 
 
 def ping():
     return "pong"
 
 
-class HelloWorld(BaseSample):
+class HelloWorld(Base):
     def __init__(self) -> None:
         super().__init__()
         return
@@ -70,13 +72,12 @@ class IsaacServiceExtension(omni.ext.IExt):
     # this extension is located on filesystem.
     def on_startup(self, ext_id):
 
+        # debug
         frontend_port = carb.settings.get_settings().get_as_int("exts/omni.services.transport.server.http/port")
         print(f"[rv.services.isaac] Starting Isaac Sim Microservice at port {frontend_port}")
 
+        # views
         self._sample = HelloWorld()
-
-        main.register_endpoint("get", "/create_world_async", self._sample.load_world_async)
-        main.register_endpoint("get", "/add_robot", self._sample.add_robot)
 
         self._window = ui.Window("My Window", width=300, height=300)
         with self._window.frame:
@@ -89,6 +90,13 @@ class IsaacServiceExtension(omni.ext.IExt):
 
                 ui.Button("Click Me", clicked_fn=lambda: on_click())
 
+        # controllers
+        main.register_router(usd_service.router, prefix="/usd", tags=["usd"])
+
+        main.register_endpoint("get", "/ping", ping)
+        main.register_endpoint("get", "/create_world_async", self._sample.load_world_async)
+        main.register_endpoint("get", "/add_robot", self._sample.add_robot)
+
 
     def _on_load_world(self):
         async def _on_load_world_async():
@@ -100,6 +108,9 @@ class IsaacServiceExtension(omni.ext.IExt):
 
 
     def on_shutdown(self):
+        main.deregister_router(usd_service.router, prefix="/usd")
+
         main.deregister_endpoint("get", "/ping")
+        main.deregister_endpoint("get", "/create_world_async")
         main.deregister_endpoint("get", "/add_robot")
         print("[rv.services.isaac] MyExtension shutdown")

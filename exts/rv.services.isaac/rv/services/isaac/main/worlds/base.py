@@ -13,7 +13,7 @@ import gc
 from abc import abstractmethod
 
 
-class BaseSample(object):
+class Base(object):
     def __init__(self) -> None:
         self._world = None
         self._current_tasks = None
