@@ -1,26 +1,28 @@
 # this file initializes the service endpoint and world
-
+# library
 import carb
 import asyncio
+# dependency
+import omni.kit.app
 import omni.ext
+import omni.usd
+import omni.timeline
 import omni.ui as ui
 from omni.services.core import main
+from omni.isaac.core import World
 from omni.isaac.core.scenes.scene import Scene
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.isaac.core.robots import Robot
-
-from .main.worlds.base import Base
-from .main.services import usd_service
-
-
-def ping():
-    return "pong"
+# module
+from .main.universes.base import Base
+from .main.services import usd_service, sample_service, universe_service
 
 
-class HelloWorld(Base):
+class IsaacBase(Base):
     def __init__(self) -> None:
         super().__init__()
+        print("Using Isaac Base")
         return
 
     def add_robot(self):
@@ -70,19 +72,20 @@ class HelloWorld(Base):
 class IsaacServiceExtension(omni.ext.IExt):
     # ext_id is current extension id. It can be used with extension manager to query additional information, like where
     # this extension is located on filesystem.
-    def on_startup(self, ext_id):
+    def on_startup(self, ext_id: str):
+
+        self._ext_id = ext_id
+        self._universe = IsaacBase()
 
         # debug
         frontend_port = carb.settings.get_settings().get_as_int("exts/omni.services.transport.server.http/port")
         print(f"[rv.services.isaac] Starting Isaac Sim Microservice at port {frontend_port}")
 
         # views
-        self._sample = HelloWorld()
-
-        self._window = ui.Window("My Window", width=300, height=300)
+        self._window = ui.Window("Debug Window", width=300, height=300)
         with self._window.frame:
             with ui.VStack():
-                ui.Label("Some Label")
+                ui.Label("Debug Button")
 
                 def on_click():
                     print("clicked!")
@@ -91,26 +94,56 @@ class IsaacServiceExtension(omni.ext.IExt):
                 ui.Button("Click Me", clicked_fn=lambda: on_click())
 
         # controllers
+        self.start_services()
+        return 
+
+    def start_services(self):
+
+        main.register_router(sample_service.router, prefix="/sample", tags=["sample"]) # sample, remove in prod
         main.register_router(usd_service.router, prefix="/usd", tags=["usd"])
+        # main.register_router(universe_service.router, prefix="/universe", tags=["universe"])
 
-        main.register_endpoint("get", "/ping", ping)
-        main.register_endpoint("get", "/create_world_async", self._sample.load_world_async)
-        main.register_endpoint("get", "/add_robot", self._sample.add_robot)
-
-
-    def _on_load_world(self):
-        async def _on_load_world_async():
-            await self._sample.load_world_async()
-            await omni.kit.app.get_app().next_update_async()
-
-        asyncio.ensure_future(_on_load_world_async())
+        main.register_endpoint("get", "/initialize_universe", self.initialize_universe)
+        main.register_endpoint("get", "/create_world_async", self._universe.load_world_async)
+        main.register_endpoint("get", "/add_robot", self._universe.add_robot)
         return
 
-
     def on_shutdown(self):
-        main.deregister_router(usd_service.router, prefix="/usd")
+        if self._universe._world is not None:
+            self._universe._world_cleanup()
+        self.shutdown_services()
+        return
 
-        main.deregister_endpoint("get", "/ping")
+    def shutdown_services(self):
+
+        main.deregister_router(sample_service.router, prefix="/sample")
+        main.deregister_router(usd_service.router, prefix="/usd")
+        
+        main.deregister_endpoint("get", "/initialize_universe")
         main.deregister_endpoint("get", "/create_world_async")
         main.deregister_endpoint("get", "/add_robot")
-        print("[rv.services.isaac] MyExtension shutdown")
+        print("[rv.services.isaac] IsaacServiceExtension shutdown")
+        return
+
+    # @property
+    # def universe(self):
+    #     return self._universe
+
+    async def initialize_universe(self):
+        await self._universe.load_world_async()
+        await omni.kit.app.get_app().next_update_async()
+        self._universe._world.add_stage_callback("stage_event", self.on_stage_event)
+        self._universe._world.add_timeline_callback("timeline_event", self.on_timeline_event)
+        return
+
+    def on_stage_event(self, event):
+        if event.type == int(omni.usd.StageEventType.CLOSED):
+            if World.instance() is not None:
+                self._universe._world_cleanup()
+                self._universe._world.clear_instance()
+        return
+
+    def on_timeline_event(self, event):
+        if event.type == int(omni.timeline.TimelineEventType.STOP):
+            pass
+        return
