@@ -10,60 +10,10 @@ import omni.timeline
 import omni.ui as ui
 from omni.services.core import main
 from omni.isaac.core import World
-from omni.isaac.core.scenes.scene import Scene
-from omni.isaac.core.utils.nucleus import get_assets_root_path
-from omni.isaac.core.utils.stage import add_reference_to_stage
-from omni.isaac.core.robots import Robot
+
 # module
-from .main.universes.base import Base
-from .main.services import usd_service, sample_service, universe_service
-
-
-class IsaacBase(Base):
-    def __init__(self) -> None:
-        super().__init__()
-        print("Using Isaac Base")
-        return
-
-    def add_robot(self):
-        world = self.get_world()
-        # Use the find_nucleus_server instead of changing it every time
-        # you configure a new server with /Isaac folder in it
-        # assets_root_path = get_assets_root_path()
-        assets_root_path = "omniverse://localhost/NVIDIA/Assets/Isaac/2022.1"
-        if assets_root_path is None:
-            # Use carb to log warnings, errors and infos in your application (shown on terminal)
-            carb.log_error("Could not find nucleus server with /Isaac folder")
-        asset_path = assets_root_path + "/Isaac/Robots/Jetbot/jetbot.usd"
-        # This will create a new XFormPrim and point it to the usd file as a reference
-        # Similar to how pointers work in memory
-        add_reference_to_stage(usd_path=asset_path, prim_path="/World/Fancy_Robot")
-        # Wrap the jetbot prim root under a Robot class and add it to the Scene
-        # to use high level api to set/ get attributes as well as initializing
-        # physics handles needed..etc.
-        # Note: this call doesn't create the Jetbot in the stage window, it was already
-        # created with the add_reference_to_stage
-        jetbot_robot = world.scene.add(Robot(prim_path="/World/Fancy_Robot", name="fancy_robot"))
-        # Note: before a reset is called, we can't access information related to an Articulation
-        # because physics handles are not initialized yet. setup_post_load is called after
-        # the first reset so we can do so there
-        print("Num of degrees of freedom before first reset: " + str(jetbot_robot.num_dof)) # prints None
-
-    def setup_scene(self, scene: Scene):
-        scene.add_default_ground_plane()
-        return
-
-    async def setup_post_load(self):
-        return
-
-    async def setup_pre_reset(self):
-        return
-
-    async def setup_post_reset(self):
-        return
-
-    def world_cleanup(self):
-        return
+from .main.universes.isaac_base import IsaacBase, FrankaUniverse
+from .main.services import isaac_service, usd_service, sample_service
 
 
 # Any class derived from `omni.ext.IExt` in top level module (defined in `python.modules` of `extension.toml`) will be
@@ -75,7 +25,8 @@ class IsaacServiceExtension(omni.ext.IExt):
     def on_startup(self, ext_id: str):
 
         self._ext_id = ext_id
-        self._universe = IsaacBase()
+        # change this to change environment
+        self._universe = FrankaUniverse()
 
         # debug
         frontend_port = carb.settings.get_settings().get_as_int("exts/omni.services.transport.server.http/port")
@@ -94,48 +45,68 @@ class IsaacServiceExtension(omni.ext.IExt):
                 ui.Button("Click Me", clicked_fn=lambda: on_click())
 
         # controllers
+        main.register_endpoint("get", "/load-universe", self.load_universe)
+        main.register_endpoint("get", "/reset-universe", self.reset_universe)
+        main.register_endpoint("get", "/clear-universe", self.clear_universe)
+        main.register_endpoint("get", "/play-async", self.play)
+        main.register_endpoint("get", "/pause-async", self.pause)
+        # custom routes
         self.start_services()
         return 
 
     def start_services(self):
-
         main.register_router(sample_service.router, prefix="/sample", tags=["sample"]) # sample, remove in prod
         main.register_router(usd_service.router, prefix="/usd", tags=["usd"])
-        # main.register_router(universe_service.router, prefix="/universe", tags=["universe"])
-
-        main.register_endpoint("get", "/initialize_universe", self.initialize_universe)
-        main.register_endpoint("get", "/create_world_async", self._universe.load_world_async)
-        main.register_endpoint("get", "/add_robot", self._universe.add_robot)
+        main.register_router(isaac_service.router, prefix="/isaac", tags=["isaac"])
         return
 
     def on_shutdown(self):
+        print("[rv.services.isaac] Shutting down IsaacServiceExtension")
         if self._universe._world is not None:
             self._universe._world_cleanup()
+
+        main.deregister_endpoint("get", "/load-universe")
+        main.deregister_endpoint("get", "/reset-universe")
+        main.deregister_endpoint("get", "/clear-universe")
+        main.deregister_endpoint("get", "/play-async")
+        main.deregister_endpoint("get", "/pause-async")
+        # shutdown custom routes
         self.shutdown_services()
         return
 
     def shutdown_services(self):
-
         main.deregister_router(sample_service.router, prefix="/sample")
         main.deregister_router(usd_service.router, prefix="/usd")
-        
-        main.deregister_endpoint("get", "/initialize_universe")
-        main.deregister_endpoint("get", "/create_world_async")
-        main.deregister_endpoint("get", "/add_robot")
-        print("[rv.services.isaac] IsaacServiceExtension shutdown")
+        main.deregister_router(isaac_service.router, prefix="/isaac")
         return
 
     # @property
     # def universe(self):
     #     return self._universe
 
-    async def initialize_universe(self):
+    async def load_universe(self):
         await self._universe.load_world_async()
         await omni.kit.app.get_app().next_update_async()
         self._universe._world.add_stage_callback("stage_event", self.on_stage_event)
         self._universe._world.add_timeline_callback("timeline_event", self.on_timeline_event)
         return
 
+    async def reset_universe(self):
+        await self._universe.reset_async()
+        await omni.kit.app.get_app().next_update_async()
+
+    async def clear_universe(self):
+        await self._universe.clear_async()
+        await omni.kit.app.get_app().next_update_async()
+
+    async def play(self):
+        await self._universe._world.play_async()
+        return
+
+    async def pause(self):
+        await self._universe._world.pause_async()
+        return
+        
     def on_stage_event(self, event):
         if event.type == int(omni.usd.StageEventType.CLOSED):
             if World.instance() is not None:
