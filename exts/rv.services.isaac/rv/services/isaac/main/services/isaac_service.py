@@ -10,7 +10,9 @@ from omni.isaac.core.objects import DynamicCuboid
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.isaac.franka import Franka
-# from ..models.usd_models import RequestDataModel, ResponseModel
+from omni.isaac.franka.tasks import PickPlace
+
+from ..models.isaac_models import RequestModel, ResponseModel
 
 
 
@@ -71,3 +73,9 @@ def add_robot():
     else:
         world.scene.add(Franka(prim_path="/World/Fancy_Franka", name="fancy_franka"))
         return
+
+@router.post("/set-goal", response_model=ResponseModel)
+async def set_goal(req: RequestModel):
+    task: PickPlace = World.instance().get_task("awesome_task")
+    task.set_params(target_position=np.array([req.x_pos, req.y_pos, 0.0515 / 2.0]))
+    return ResponseModel(status=200, message="success")
